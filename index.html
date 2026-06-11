@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Find Your New Tennessee Congressional District</title>
+<meta name="description" content="Tennessee redrew its congressional maps. Enter your address to find out which U.S. House district you live in now.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Libre+Franklin:wght@400;500;600;800&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+
+<style>
+  :root {
+    --paper: #faf7f1;
+    --paper-deep: #f1ece2;
+    --ink: #1c1a17;
+    --ink-soft: #57524a;
+    --rule: #d8d1c4;
+    --tn-red: #b03a2e;
+    --tn-blue: #28456e;
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Libre Franklin", "Helvetica Neue", sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.55;
+    /* faint paper grain */
+    background-image: radial-gradient(rgba(28,26,23,.035) 1px, transparent 1px);
+    background-size: 5px 5px;
+  }
+
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 20px 36px;
+  }
+
+  /* ---------- masthead ---------- */
+  header {
+    border-top: 5px solid var(--ink);
+    padding-top: 18px;
+    margin-bottom: 6px;
+    animation: rise .5s ease both;
+  }
+
+  .kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--tn-red);
+  }
+
+  /* Tennessee tri-star */
+  .tristar {
+    width: 20px; height: 20px;
+    flex: none;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 900;
+    font-size: clamp(28px, 5.5vw, 42px);
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    margin: 10px 0 12px;
+  }
+
+  .standfirst {
+    font-size: 16px;
+    color: var(--ink-soft);
+    max-width: 56ch;
+    margin-bottom: 22px;
+  }
+
+  /* ---------- search ---------- */
+  .search {
+    display: flex;
+    gap: 0;
+    border: 2px solid var(--ink);
+    background: #fff;
+    box-shadow: 5px 5px 0 var(--paper-deep);
+    animation: rise .5s .08s ease both;
+  }
+
+  .search input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    font: 500 17px/1.2 var(--sans);
+    color: var(--ink);
+    padding: 15px 16px;
+    outline: none;
+  }
+  .search input::placeholder { color: #9b948a; }
+
+  .search button {
+    border: 0;
+    background: var(--ink);
+    color: var(--paper);
+    font: 800 14px/1 var(--sans);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 0 22px;
+    cursor: pointer;
+    transition: background .15s ease;
+    white-space: nowrap;
+  }
+  .search button:hover, .search button:focus-visible { background: var(--tn-red); }
+  .search button:disabled { background: #8e887e; cursor: wait; }
+
+  .search:focus-within { outline: 3px solid rgba(176,58,46,.35); outline-offset: 2px; }
+
+  .hint {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin: 10px 2px 0;
+  }
+
+  /* ---------- status / errors ---------- */
+  .status {
+    margin-top: 18px;
+    font-size: 15px;
+    color: var(--ink-soft);
+  }
+  .status.error {
+    color: var(--tn-red);
+    font-weight: 600;
+  }
+
+  /* ---------- result card ---------- */
+  .result {
+    display: none;
+    margin-top: 22px;
+    border: 2px solid var(--ink);
+    background: #fff;
+    box-shadow: 6px 6px 0 var(--paper-deep);
+    overflow: hidden;
+  }
+  .result.show {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    animation: rise .45s ease both;
+  }
+
+  .result .numeral {
+    display: grid;
+    place-items: center;
+    min-width: 110px;
+    padding: 18px 20px;
+    color: #fff;
+    font-family: var(--serif);
+    font-weight: 900;
+    font-size: 64px;
+    line-height: 1;
+  }
+
+  .result .detail { padding: 18px 22px; align-self: center; }
+
+  .result .label {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  .result .name {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: clamp(22px, 4vw, 30px);
+    line-height: 1.15;
+    margin: 2px 0 6px;
+  }
+
+  .result .matched {
+    font-size: 13.5px;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- map ---------- */
+  .map-block {
+    margin-top: 26px;
+    animation: rise .5s .16s ease both;
+  }
+
+  #map {
+    height: 440px;
+    border: 2px solid var(--ink);
+    background: var(--paper-deep);
+  }
+  @media (max-width: 540px) { #map { height: 360px; } }
+
+  .district-tip {
+    background: var(--ink);
+    color: var(--paper);
+    border: 0;
+    border-radius: 0;
+    font: 800 12px/1 var(--sans);
+    padding: 4px 7px;
+    box-shadow: none;
+  }
+  .district-tip::before { display: none; }
+
+  /* ---------- footer ---------- */
+  footer {
+    margin-top: 22px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    font-size: 12.5px;
+    color: var(--ink-soft);
+  }
+  footer a { color: var(--tn-blue); }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
+  /* small-iframe friendliness */
+  @media (max-width: 420px) {
+    .search { flex-direction: column; }
+    .search button { padding: 14px; }
+    .result.show { grid-template-columns: 1fr; }
+    .result .numeral { min-width: 0; padding: 12px; font-size: 48px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="kicker">
+      <svg class="tristar" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="11" fill="var(--tn-blue)"/>
+        <circle cx="12" cy="12" r="9.2" fill="none" stroke="#fff" stroke-width="1.1"/>
+        <g fill="#fff">
+          <path d="M12 4.8l1 2.1 2.3.3-1.7 1.6.4 2.3-2-1.1-2 1.1.4-2.3-1.7-1.6 2.3-.3z"/>
+          <path d="M7.2 12.5l1 2.1 2.3.3-1.7 1.6.4 2.3-2-1.1-2 1.1.4-2.3-1.7-1.6 2.3-.3z" transform="scale(.92) translate(.6 .4)"/>
+          <path d="M16.8 12.5l1 2.1 2.3.3-1.7 1.6.4 2.3-2-1.1-2 1.1.4-2.3-1.7-1.6 2.3-.3z" transform="scale(.92) translate(.8 .4)"/>
+        </g>
+      </svg>
+      Tennessee Redistricting
+    </span>
+    <h1>Which congressional district do you live in now?</h1>
+    <p class="standfirst">Tennessee has redrawn its U.S. House maps. Type your street address below and we&rsquo;ll look up your new district. Your address is sent only to the U.S. Census Bureau&rsquo;s geocoder &mdash; it is never stored.</p>
+  </header>
+
+  <form class="search" id="searchForm">
+    <label for="address" class="sr-only" style="position:absolute;left:-9999px;">Street address</label>
+    <input id="address" name="address" type="text" autocomplete="street-address"
+           placeholder="e.g. 600 Dr. M.L.K. Jr. Blvd, Nashville" required>
+    <button type="submit" id="searchBtn">Find my district</button>
+  </form>
+  <p class="hint">Include your city for best results. ZIP code alone won&rsquo;t work &mdash; districts can split a ZIP.</p>
+
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+
+  <div class="result" id="result" aria-live="polite">
+    <div class="numeral" id="resultNumeral"></div>
+    <div class="detail">
+      <div class="label">Your new district</div>
+      <div class="name" id="resultName"></div>
+      <div class="matched" id="resultMatched"></div>
+    </div>
+  </div>
+
+  <div class="map-block">
+    <div id="map" aria-label="Map of Tennessee congressional districts"></div>
+  </div>
+
+  <footer>
+    Sources: District boundaries from the State of Tennessee&rsquo;s official 2026 congressional redistricting shapefiles. Address lookup by the
+    <a href="https://geocoding.geo.census.gov/" target="_blank" rel="noopener">U.S. Census Bureau geocoder</a>.
+    Results are unofficial &mdash; contact your county election commission to confirm your district and polling place.
+  </footer>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://pym.nprapps.org/pym.v1.min.js"></script>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- district palette (muted, editorial) ---------- */
+  var PALETTE = {
+    1: "#b65d4a", 2: "#46789f", 3: "#7d9163",
+    4: "#c2974a", 5: "#8a6da3", 6: "#56999a",
+    7: "#a85d7e", 8: "#737f4c", 9: "#4f6d7a"
+  };
+
+  var statusEl  = document.getElementById("status");
+  var resultEl  = document.getElementById("result");
+  var numeralEl = document.getElementById("resultNumeral");
+  var nameEl    = document.getElementById("resultName");
+  var matchedEl = document.getElementById("resultMatched");
+  var form      = document.getElementById("searchForm");
+  var input     = document.getElementById("address");
+  var button    = document.getElementById("searchBtn");
+
+  /* ---------- map ---------- */
+  var map = L.map("map", { scrollWheelZoom: false }).setView([35.84, -86.35], 6);
+
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: "abcd",
+    maxZoom: 19
+  }).addTo(map);
+
+  var districtLayer = null;
+  var marker = null;
+  var layersByDistrict = {};
+
+  function baseStyle(feature) {
+    var d = feature.properties.district;
+    return {
+      color: "#1c1a17",
+      weight: 1,
+      fillColor: PALETTE[d] || "#999",
+      fillOpacity: 0.42
+    };
+  }
+
+  /* ---------- load district boundaries ---------- */
+  var districtsReady = fetch("districts.json")
+    .then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then(function (geojson) {
+      districtLayer = L.geoJSON(geojson, {
+        style: baseStyle,
+        onEachFeature: function (feature, layer) {
+          layersByDistrict[feature.properties.district] = layer;
+          layer.bindTooltip(String(feature.properties.district), {
+            permanent: true,
+            direction: "center",
+            className: "district-tip"
+          });
+        }
+      }).addTo(map);
+      map.fitBounds(districtLayer.getBounds(), { padding: [10, 10] });
+      return geojson;
+    });
+
+  districtsReady.catch(function () {
+    setStatus("Could not load the district map data. Please refresh the page.", true);
+  });
+
+  /* ---------- geocoding: U.S. Census Bureau (free, no key) ---------- */
+  var CENSUS = "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress";
+
+  /* The Census geocoder doesn't send CORS headers, so JSONP is the
+     primary transport; plain fetch is kept as a fallback in case the
+     bureau enables CORS later. */
+  function geocode(address) {
+    return geocodeJsonp(address)
+      .catch(function () {
+        var qs = "?address=" + encodeURIComponent(address) +
+                 "&benchmark=Public_AR_Current&format=json";
+        return fetch(CENSUS + qs).then(function (r) { return r.json(); });
+      })
+      .then(function (data) {
+        var matches = data && data.result && data.result.addressMatches;
+        if (!matches || !matches.length) return null;
+        return {
+          lng: matches[0].coordinates.x,
+          lat: matches[0].coordinates.y,
+          label: matches[0].matchedAddress
+        };
+      });
+  }
+
+  function geocodeJsonp(address) {
+    return new Promise(function (resolve, reject) {
+      var cb = "censusCb" + Date.now();
+      var s = document.createElement("script");
+      var timer = setTimeout(function () { cleanup(); reject(new Error("timeout")); }, 12000);
+      function cleanup() {
+        clearTimeout(timer);
+        delete window[cb];
+        if (s.parentNode) s.parentNode.removeChild(s);
+      }
+      window[cb] = function (data) { cleanup(); resolve(data); };
+      s.onerror = function () { cleanup(); reject(new Error("jsonp failed")); };
+      s.src = CENSUS + "?address=" + encodeURIComponent(address) +
+              "&benchmark=Public_AR_Current&format=jsonp&callback=" + cb;
+      document.head.appendChild(s);
+    });
+  }
+
+  /* ---------- point-in-polygon (ray casting, holes supported) ---------- */
+  function inRing(lng, lat, ring) {
+    var inside = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      var xi = ring[i][0], yi = ring[i][1];
+      var xj = ring[j][0], yj = ring[j][1];
+      if (((yi > lat) !== (yj > lat)) &&
+          (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  }
+
+  function inPolygon(lng, lat, rings) {
+    if (!inRing(lng, lat, rings[0])) return false;        // outer ring
+    for (var i = 1; i < rings.length; i++) {              // holes
+      if (inRing(lng, lat, rings[i])) return false;
+    }
+    return true;
+  }
+
+  function findDistrict(geojson, lng, lat) {
+    for (var f = 0; f < geojson.features.length; f++) {
+      var feat = geojson.features[f];
+      var g = feat.geometry;
+      if (g.type === "Polygon") {
+        if (inPolygon(lng, lat, g.coordinates)) return feat.properties;
+      } else if (g.type === "MultiPolygon") {
+        for (var p = 0; p < g.coordinates.length; p++) {
+          if (inPolygon(lng, lat, g.coordinates[p])) return feat.properties;
+        }
+      }
+    }
+    return null;
+  }
+
+  /* ---------- UI ---------- */
+  var pymChild = null;
+  try { if (window.pym) pymChild = new pym.Child(); } catch (e) { /* not embedded */ }
+
+  function tellParent() { if (pymChild) pymChild.sendHeight(); }
+
+  function setStatus(msg, isError) {
+    statusEl.textContent = msg;
+    statusEl.className = "status" + (isError ? " error" : "");
+    tellParent();
+  }
+
+  function showResult(props, matchedAddress) {
+    var color = PALETTE[props.district] || "#555";
+    numeralEl.textContent = props.district;
+    numeralEl.style.background = color;
+    nameEl.textContent = "Tennessee’s " + ordinal(props.district) + " Congressional District";
+    matchedEl.textContent = "Matched address: " + titleCase(matchedAddress);
+    resultEl.classList.add("show");
+    tellParent();
+  }
+
+  function hideResult() {
+    resultEl.classList.remove("show");
+  }
+
+  function ordinal(n) {
+    var s = ["th", "st", "nd", "rd"], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+
+  function titleCase(str) {
+    return str ? str.toLowerCase().replace(/\b[a-z]/g, function (c) { return c.toUpperCase(); }) : "";
+  }
+
+  function highlightDistrict(d) {
+    Object.keys(layersByDistrict).forEach(function (k) {
+      layersByDistrict[k].setStyle({ fillOpacity: 0.18, weight: 1 });
+    });
+    var layer = layersByDistrict[d];
+    if (layer) layer.setStyle({ fillOpacity: 0.55, weight: 2.5 });
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var address = input.value.trim();
+    if (!address) return;
+
+    /* Bias toward Tennessee if the user left the state off */
+    if (!/\b(tn|tenn|tennessee)\b/i.test(address)) address += ", TN";
+
+    hideResult();
+    button.disabled = true;
+    setStatus("Looking up your address…");
+
+    Promise.all([geocode(address), districtsReady])
+      .then(function (results) {
+        var loc = results[0], geojson = results[1];
+        if (!loc) {
+          setStatus("We couldn’t find that address. Check the spelling and include your city (for example: “600 Dr. M.L.K. Jr. Blvd, Nashville”).", true);
+          return;
+        }
+        var props = findDistrict(geojson, loc.lng, loc.lat);
+        if (!props) {
+          setStatus("That address doesn’t appear to be in Tennessee, so it isn’t in any of these districts.", true);
+          return;
+        }
+        setStatus("");
+        showResult(props, loc.label);
+        highlightDistrict(props.district);
+
+        if (marker) map.removeLayer(marker);
+        marker = L.circleMarker([loc.lat, loc.lng], {
+          radius: 7, color: "#1c1a17", weight: 2,
+          fillColor: "#ffffff", fillOpacity: 1
+        }).addTo(map);
+        map.flyTo([loc.lat, loc.lng], 10, { duration: 0.9 });
+      })
+      .catch(function () {
+        setStatus("Something went wrong looking up that address. Please try again in a moment.", true);
+      })
+      .finally(function () {
+        button.disabled = false;
+      });
+  });
+})();
+</script>
+</body>
+</html>
